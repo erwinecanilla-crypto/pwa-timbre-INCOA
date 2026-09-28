@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#22303F">
+<title>Timbre Escolar Automático — INCOA</title>
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<header class="topbar">
+  <svg class="topbar__bell" viewBox="0 0 512 512" aria-hidden="true">
+    <path d="M256 96c-62 0-104 50-104 118v50l-30 50h268l-30-50v-50c0-68-42-118-104-118z" fill="#B5652E"/>
+    <circle cx="256" cy="82" r="14" fill="#B5652E"/>
+    <path d="M226 340a30 30 0 0 0 60 0z" fill="#22303F"/>
+  </svg>
+  <div class="topbar__titles">
+    <h1>Timbre Escolar Automático</h1>
+    <p>Instituto Nacional Colonia Ciudad Obrera de Apopa</p>
+  </div>
+  <button id="btnActivarAlarma" class="btn-emergency" title="Activar la alarma de emergencia en todo el plantel">
+    Activar alarma
+  </button>
+  <div class="topbar__status">
+    <span class="status-dot" id="statusDot"></span>
+    <span id="statusText">Conectado</span>
+  </div>
+</header>
+
+
+<nav class="tabs" role="tablist">
+  <button class="tab" id="tabHorarios" role="tab" aria-selected="true" aria-controls="panelHorarios">Horarios</button>
+  <button class="tab" id="tabHistorial" role="tab" aria-selected="false" aria-controls="panelHistorial">Historial</button>
+</nav>
+
+<main>
+
+  <!-- ===================== PANEL: HORARIOS ===================== -->
+  <section id="panelHorarios" class="panel is-active" role="tabpanel" aria-labelledby="tabHorarios">
+    <div class="panel__head">
+      <div>
+        <h2>Horarios programados</h2>
+        <p>Estos horarios se descargan al ESP32 y se ejecutan ahí de forma autónoma
+           (corto = clase/entrada, medio = receso/salida, largo = alarma).</p>
+      </div>
+    </div>
+
+    <div class="horarios-layout">
+      <div class="card">
+        <table id="tablaHorarios">
+          <thead>
+            <tr>
+              <th>Hora</th>
+              <th>Tipo de toque</th>
+              <th>Días</th>
+              <th>Estado</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="cuerpoHorarios"></tbody>
+        </table>
+        <div id="estadoVacioHorarios" class="empty-state" hidden>
+          Aún no hay horarios programados. Agregue el primero con el formulario.
+        </div>
+      </div>
+
+      <div class="card">
+        <h3 style="font-size:0.95rem; margin-bottom:0.75rem;">Agregar / editar horario</h3>
+        <form id="formHorario" class="form-grid">
+          <input type="hidden" id="horarioId">
+          <div>
+            <label for="horarioHora">Hora</label>
+            <input type="time" id="horarioHora" required>
+          </div>
+          <div>
+            <label for="horarioTipo">Tipo de toque</label>
+            <select id="horarioTipo" required>
+              <option value="clase">Cambio de clase</option>
+              <option value="recreo">Recreo</option>
+              <option value="salida">Salida</option>
+              <option value="entrada">Entrada a clases</option>
+              <option value="emergencia">Emergencia</option>
+            </select>
+          </div>
+          <div class="days-row" id="diasRow">
+            <span class="day-chip" data-day="L">Lun</span>
+            <span class="day-chip" data-day="M">Mar</span>
+            <span class="day-chip" data-day="X">Mié</span>
+            <span class="day-chip" data-day="J">Jue</span>
+            <span class="day-chip" data-day="V">Vie</span>
+          </div>
+          <div style="grid-column: 1 / -1; display:flex; gap:0.5rem;">
+            <button type="submit" class="btn-primary">Guardar horario</button>
+            <button type="button" id="btnCancelarEdicion" class="btn-secondary" hidden>Cancelar</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== PANEL: HISTORIAL ===================== -->
+  <section id="panelHistorial" class="panel" role="tabpanel" aria-labelledby="tabHistorial">
+    <div class="panel__head">
+      <div>
+        <h2>Historial de activaciones</h2>
+        <p>Registro de cada vez que el timbre sonó, reportado por el dispositivo.</p>
+      </div>
+      <button id="btnSimularActivacion" class="btn-secondary btn-small">Simular activación</button>
+    </div>
+
+    <div class="card">
+      <div id="listaHistorial"></div>
+      <div id="estadoVacioHistorial" class="empty-state" hidden>
+        Todavía no se ha registrado ninguna activación.
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<script src="js/app.js"></script>
+</body>
+</html>

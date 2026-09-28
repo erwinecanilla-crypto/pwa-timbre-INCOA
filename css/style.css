@@ -1,0 +1,287 @@
+/* ==========================================================================
+   Sistema de Timbre Escolar Automático — INCOA
+   Tokens de diseño
+   -------------------------------------------------------------------------
+   Color:
+     --color-bg        #F6F4EF  fondo cálido tipo papel institucional
+     --color-surface    #FFFFFF  tarjetas y paneles
+     --color-ink        #22303F  azul pizarra, texto principal
+     --color-ink-soft    #5B6B7A  texto secundario
+     --color-accent      #B5652E  bronce/latón, color del timbre físico
+     --color-accent-soft #EFDFCB  fondo suave para estados activos
+     --color-secondary   #2F6F62  verde azulado, estados "sonó correctamente"
+     --color-line        #DCD5C6  bordes y separadores
+     --color-danger       #B3432B  eliminar / emergencia
+   Tipografía:
+     Encabezados: Georgia (serif institucional, evoca el papel membretado)
+     Interfaz:    system-ui sans (legibilidad en pantallas pequeñas)
+   Layout:
+     Barra superior fija + navegación por pestañas + panel principal de
+     una sola columna en móvil, dos columnas (tabla + formulario) en
+     escritorio.
+   ========================================================================== */
+
+:root {
+  --color-bg: #F6F4EF;
+  --color-surface: #FFFFFF;
+  --color-ink: #22303F;
+  --color-ink-soft: #5B6B7A;
+  --color-accent: #B5652E;
+  --color-accent-soft: #EFDFCB;
+  --color-secondary: #2F6F62;
+  --color-line: #DCD5C6;
+  --color-danger: #B3432B;
+
+  --font-heading: Georgia, "Times New Roman", serif;
+  --font-body: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+
+  --radius: 10px;
+  --shadow: 0 1px 2px rgba(34, 48, 63, 0.08);
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: var(--color-bg);
+  color: var(--color-ink);
+  font-family: var(--font-body);
+  -webkit-font-smoothing: antialiased;
+}
+
+body { padding-bottom: 3rem; }
+
+h1, h2, h3 { font-family: var(--font-heading); font-weight: 700; margin: 0; }
+
+/* ---------- Barra superior ---------- */
+
+.topbar {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 1rem 1.25rem;
+  border-bottom: 1px solid var(--color-line);
+  background: var(--color-surface);
+}
+
+.topbar__bell { width: 30px; height: 30px; flex-shrink: 0; }
+
+.topbar__titles h1 { font-size: 1.15rem; line-height: 1.2; }
+.topbar__titles p {
+  margin: 0.1rem 0 0;
+  font-size: 0.78rem;
+  color: var(--color-ink-soft);
+}
+
+.topbar__status {
+  margin-left: auto;
+  font-size: 0.75rem;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  color: var(--color-ink-soft);
+}
+
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--color-secondary);
+}
+.status-dot.offline { background: var(--color-danger); }
+
+/* ---------- Navegación por pestañas ---------- */
+
+.tabs {
+  display: flex;
+  gap: 0.25rem;
+  padding: 0.75rem 1.25rem 0;
+  border-bottom: 1px solid var(--color-line);
+  background: var(--color-surface);
+}
+
+.tab {
+  border: none;
+  background: none;
+  font-family: var(--font-body);
+  font-size: 0.9rem;
+  color: var(--color-ink-soft);
+  padding: 0.6rem 0.9rem;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+}
+
+.tab[aria-selected="true"] {
+  color: var(--color-ink);
+  border-bottom-color: var(--color-accent);
+  font-weight: 600;
+}
+
+/* ---------- Panel principal ---------- */
+
+main { padding: 1.25rem; max-width: 960px; margin: 0 auto; }
+
+.panel { display: none; }
+.panel.is-active { display: block; }
+
+.panel__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.9rem;
+}
+
+.panel__head h2 { font-size: 1.3rem; }
+.panel__head p { margin: 0.2rem 0 0; color: var(--color-ink-soft); font-size: 0.85rem; }
+
+/* ---------- Tarjeta / formulario ---------- */
+
+.card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 1rem;
+}
+
+.card + .card { margin-top: 1rem; }
+
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 0.75rem;
+  align-items: end;
+}
+
+label {
+  display: block;
+  font-size: 0.75rem;
+  color: var(--color-ink-soft);
+  margin-bottom: 0.3rem;
+}
+
+input, select {
+  width: 100%;
+  padding: 0.55rem 0.6rem;
+  border: 1px solid var(--color-line);
+  border-radius: 6px;
+  font-family: var(--font-body);
+  font-size: 0.9rem;
+  background: var(--color-bg);
+  color: var(--color-ink);
+}
+
+input:focus, select:focus, button:focus, .tab:focus {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 1px;
+}
+
+.days-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  grid-column: 1 / -1;
+}
+
+.day-chip {
+  border: 1px solid var(--color-line);
+  border-radius: 999px;
+  padding: 0.35rem 0.7rem;
+  font-size: 0.8rem;
+  cursor: pointer;
+  user-select: none;
+  color: var(--color-ink-soft);
+  background: var(--color-bg);
+}
+
+.day-chip.is-active {
+  background: var(--color-accent-soft);
+  border-color: var(--color-accent);
+  color: var(--color-ink);
+}
+
+button {
+  font-family: var(--font-body);
+  font-size: 0.9rem;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  padding: 0.55rem 1rem;
+  cursor: pointer;
+}
+
+.btn-primary { background: var(--color-accent); color: #fff; }
+.btn-secondary { background: var(--color-bg); border-color: var(--color-line); color: var(--color-ink); }
+.btn-danger { background: transparent; border-color: var(--color-danger); color: var(--color-danger); }
+.btn-small { padding: 0.3rem 0.6rem; font-size: 0.78rem; }
+
+.btn-emergency {
+  background: var(--color-danger);
+  color: #fff;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  padding: 0.55rem 1rem;
+  flex-shrink: 0;
+}
+.btn-emergency:hover { filter: brightness(1.08); }
+.btn-emergency:disabled { opacity: 0.6; cursor: not-allowed; }
+
+/* ---------- Tabla de horarios ---------- */
+
+table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+
+th {
+  text-align: left;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  color: var(--color-ink-soft);
+  border-bottom: 1px solid var(--color-line);
+  padding: 0.5rem 0.4rem;
+}
+
+td { padding: 0.55rem 0.4rem; border-bottom: 1px solid var(--color-line); vertical-align: middle; }
+
+.badge {
+  display: inline-block;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  background: var(--color-accent-soft);
+  color: var(--color-ink);
+}
+
+.badge.emergencia { background: #F3D9D1; color: var(--color-danger); }
+
+.row-actions { display: flex; gap: 0.4rem; }
+
+.empty-state {
+  text-align: center;
+  padding: 2rem 1rem;
+  color: var(--color-ink-soft);
+  font-size: 0.9rem;
+}
+
+/* ---------- Historial ---------- */
+
+.history-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.65rem 0;
+  border-bottom: 1px solid var(--color-line);
+  font-size: 0.88rem;
+}
+
+.history-item:last-child { border-bottom: none; }
+.history-item__meta { color: var(--color-ink-soft); font-size: 0.78rem; }
+
+@media (min-width: 720px) {
+  .horarios-layout {
+    display: grid;
+    grid-template-columns: 1.3fr 1fr;
+    gap: 1rem;
+    align-items: start;
+  }
+}

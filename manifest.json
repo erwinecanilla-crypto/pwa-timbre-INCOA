@@ -1,0 +1,19 @@
+{
+  "name": "Timbre Escolar Automático — INCOA",
+  "short_name": "Timbre INCOA",
+  "description": "Administración de horarios e historial del sistema de timbre escolar automático",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#F6F4EF",
+  "theme_color": "#22303F",
+  "icons": [
+    {
+      "src": "icons/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
