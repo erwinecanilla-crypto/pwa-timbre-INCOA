@@ -40,20 +40,28 @@
 // ---------------------------------------------------------------------
 // Configuración: AJUSTAR antes de cargar
 // ---------------------------------------------------------------------
-const char *WIFI_SSID = "NOMBRE_DE_LA_RED";
-const char *WIFI_PASS = "CONTRASENA_DE_LA_RED";
+const char *WIFI_SSID = "POCO X7 Pro";
+const char *WIFI_PASS = "el_de_las_recargas";
 
 // IP o dominio donde corre el backend PHP (XAMPP en la misma red, o un
 // hosting). Ej: "http://192.168.1.50/timbre/api"
-const char *API_BASE = "http://192.168.1.50/timbre/api";
+const char *API_BASE = "http://10.89.137.76/pwa-timbre/api";
 
 const long  GMT_OFFSET_SEG = -6 * 3600; // El Salvador: UTC-6, sin horario de verano
 const int   DST_OFFSET_SEG = 0;
 const char *NTP_SERVER = "pool.ntp.org";
 
 // Pines (ajustar según el cableado real / opto-acoplador del contactor)
-const int PIN_RELE      = 26; // salida hacia el contactor/relé de estado sólido
-const int PIN_PULSADOR  = 27; // entrada del pulsador físico de emergencia (a GND, INPUT_PULLUP)
+// Cableado real del prototipo (ESP32 DevKit 30 pines):
+const int PIN_RELE      = 26; // D26 -> IN del módulo relé
+const int PIN_PULSADOR  = 2;  // D2  -> pulsador (la otra pata a GND, INPUT_PULLUP)
+const int PIN_SDA       = 15; // D15 -> SDA del RTC y del LCD
+const int PIN_SCL       = 13; // D13 -> SCL del RTC y del LCD
+
+// Muchos módulos de relé de 5V se activan con nivel BAJO. Si al cargar el
+// código el relé suena/activa "al revés" (activo en reposo, apagado al tocar),
+// cambia este valor.
+const bool RELE_ACTIVO_BAJO = true; // --> esto es CLAVE!
 
 // Duraciones de cada patrón (sección 4 del proyecto)
 const unsigned long DURACION_CORTO_MS = 3000;
@@ -63,7 +71,7 @@ const unsigned long LARGO_PULSO_ON_MS = 1000;
 const unsigned long LARGO_PULSO_OFF_MS = 500;
 
 const unsigned long INTERVALO_REVISAR_ALARMA_MS = 5000;   // polling de alarma.php
-const unsigned long INTERVALO_SINCRONIZAR_HORARIOS_MS = 6UL * 60 * 60 * 1000; // 6 h
+const unsigned long INTERVALO_SINCRONIZAR_HORARIOS_MS = 60UL * 1000; // 1 minuto
 
 // ---------------------------------------------------------------------
 // Estado global
@@ -82,6 +90,8 @@ struct Horario {
 Horario g_horarios[MAX_HORARIOS];
 int g_numHorarios = 0;
 
+bool g_sincronizadoInicial = false;
+unsigned long g_ultimoIntentoWiFi = 0;
 int g_ultimoMinutoRevisado = -1;
 unsigned long g_ultimaRevisionAlarma = 0;
 unsigned long g_ultimaSincronizacion = 0;
@@ -107,18 +117,117 @@ void IRAM_ATTR isrPulsador() {
 }
 
 // ---------------------------------------------------------------------
+// Utilidades de hardware
+// ---------------------------------------------------------------------
+void setRele(bool encendido) {
+  digitalWrite(PIN_RELE, (encendido != RELE_ACTIVO_BAJO) ? HIGH : LOW);
+}
+
+// Escáner I2C: en el monitor serie debe aparecer el RTC (0x68) y el LCD
+// (normalmente 0x27 o 0x3F). Sirve para comprobar el cableado.
+void escanearI2C() {
+  Serial.println("Escaneando bus I2C...");
+  int encontrados = 0;
+  for (uint8_t dir = 1; dir < 127; dir++) {
+    Wire.beginTransmission(dir);
+    if (Wire.endTransmission() == 0) {
+      Serial.printf("  dispositivo en 0x%02X\n", dir);
+      encontrados++;
+    }
+  }
+  if (encontrados == 0) Serial.println("  ninguno: revise SDA/SCL y alimentación.");
+}
+
+// ---------------------------------------------------------------------
+// LCD 16x2 por I2C (mochila PCF8574). Driver mínimo, sin librerías extra.
+// ---------------------------------------------------------------------
+uint8_t g_lcdAddr = 0; // 0 = no se encontró LCD
+const uint8_t LCD_BL = 0x08, LCD_EN = 0x04, LCD_RS = 0x01;
+
+void lcdExpansor(uint8_t d) {
+  Wire.beginTransmission(g_lcdAddr);
+  Wire.write(d | LCD_BL); // luz de fondo siempre encendida
+  Wire.endTransmission();
+}
+
+void lcdEnviar4(uint8_t nibble, uint8_t rs) {
+  uint8_t d = (nibble << 4) | rs;
+  lcdExpansor(d | LCD_EN);
+  delayMicroseconds(2);
+  lcdExpansor(d & ~LCD_EN);
+  delayMicroseconds(60);
+}
+
+void lcdEnviar(uint8_t v, uint8_t rs) {
+  lcdEnviar4(v >> 4, rs);
+  lcdEnviar4(v & 0x0F, rs);
+}
+
+void lcdLinea(uint8_t fila, const char *texto) {
+  if (!g_lcdAddr) return;
+  lcdEnviar(0x80 | (fila ? 0x40 : 0x00), 0); // posicionar al inicio de la fila
+  int n = 0;
+  for (; texto[n] && n < 16; n++) lcdEnviar(texto[n], LCD_RS);
+  for (; n < 16; n++) lcdEnviar(' ', LCD_RS); // rellenar con espacios
+}
+
+void iniciarLCD() {
+  const uint8_t candidatas[] = {0x27, 0x3F};
+  for (uint8_t dir : candidatas) {
+    Wire.beginTransmission(dir);
+    if (Wire.endTransmission() == 0) { g_lcdAddr = dir; break; }
+  }
+  if (!g_lcdAddr) {
+    Serial.println("LCD no encontrado (0x27/0x3F). Se sigue sin pantalla.");
+    return;
+  }
+  Serial.printf("LCD encontrado en 0x%02X\n", g_lcdAddr);
+  delay(50);
+  lcdEnviar4(0x03, 0); delay(5);
+  lcdEnviar4(0x03, 0); delay(1);
+  lcdEnviar4(0x03, 0);
+  lcdEnviar4(0x02, 0);        // modo 4 bits
+  lcdEnviar(0x28, 0);         // 2 líneas, 5x8
+  lcdEnviar(0x0C, 0);         // pantalla encendida, sin cursor
+  lcdEnviar(0x06, 0);
+  lcdEnviar(0x01, 0); delay(3); // limpiar
+  lcdLinea(0, "Timbre escolar");
+  lcdLinea(1, "Iniciando...");
+}
+
+// Fecha en la fila 1, hora y estado en la fila 2. Se refresca cada segundo.
+void actualizarLCD() {
+  if (!g_lcdAddr) return;
+  static unsigned long ultimo = 0;
+  if (millis() - ultimo < 1000) return;
+  ultimo = millis();
+
+  static const char *dias[] = {"Dom", "Lun", "Mar", "Mie", "Jue", "Vie", "Sab"};
+  DateTime n = rtc.now();
+  const char *estado = (g_estadoToque != SIN_SONAR) ? "TIMBRE"
+                       : (WiFi.status() == WL_CONNECTED ? "WiFi" : "");
+  char l1[32], l2[32];
+  snprintf(l1, sizeof(l1), "%02d/%02d/%04d %s", n.day(), n.month(), n.year(), dias[n.dayOfTheWeek()]);
+  snprintf(l2, sizeof(l2), "%02d:%02d:%02d %-7s", n.hour(), n.minute(), n.second(), estado);
+  lcdLinea(0, l1);
+  lcdLinea(1, l2);
+}
+
+// ---------------------------------------------------------------------
 // setup()
 // ---------------------------------------------------------------------
 void setup() {
   Serial.begin(115200);
 
   pinMode(PIN_RELE, OUTPUT);
-  digitalWrite(PIN_RELE, LOW);
+  setRele(false);
 
   pinMode(PIN_PULSADOR, INPUT_PULLUP);
   attachInterrupt(digitalPinToInterrupt(PIN_PULSADOR), isrPulsador, FALLING);
 
-  Wire.begin();
+  Wire.begin(PIN_SDA, PIN_SCL);
+  escanearI2C();
+  iniciarLCD();
   if (!rtc.begin()) {
     Serial.println("ERROR: no se detectó el módulo RTC DS3231. Revise el cableado I2C.");
   }
@@ -130,6 +239,7 @@ void setup() {
   if (WiFi.status() == WL_CONNECTED) {
     sincronizarHoraPorNTP();
     sincronizarHorarios();
+    g_sincronizadoInicial = true;
   }
 }
 
@@ -146,6 +256,8 @@ void loop() {
     }
   }
 
+  actualizarLCD();
+
   // 2) Mantener el patrón de sonido en curso (no bloqueante).
   actualizarToqueEnCurso();
 
@@ -156,6 +268,12 @@ void loop() {
   //    y, cada cierto tiempo, refrescar el horario vigente.
   if (WiFi.status() == WL_CONNECTED) {
     unsigned long ahora = millis();
+    if (!g_sincronizadoInicial) { // el WiFi volvió después del arranque
+      g_sincronizadoInicial = true;
+      g_ultimaSincronizacion = ahora;
+      sincronizarHoraPorNTP();
+      sincronizarHorarios();
+    }
     if (ahora - g_ultimaRevisionAlarma >= INTERVALO_REVISAR_ALARMA_MS) {
       g_ultimaRevisionAlarma = ahora;
       revisarAlarmaRemota();
@@ -166,27 +284,38 @@ void loop() {
       sincronizarHorarios();
     }
   } else {
-    conectarWiFi(); // intenta reconectar sin bloquear demasiado
+    reintentarWiFi(); // no bloquea: el timbre sigue funcionando sin red
   }
 }
 
 // ---------------------------------------------------------------------
 // WiFi / NTP
 // ---------------------------------------------------------------------
+// Solo para el arranque: un intento con espera de hasta 10 s.
 void conectarWiFi() {
-  if (WiFi.status() == WL_CONNECTED) return;
-  Serial.println("Conectando a WiFi...");
+  Serial.printf("Conectando a WiFi '%s'...\n", WIFI_SSID);
+  WiFi.mode(WIFI_STA);
   WiFi.begin(WIFI_SSID, WIFI_PASS);
 
   unsigned long inicio = millis();
-  while (WiFi.status() != WL_CONNECTED && millis() - inicio < 8000) {
-    delay(200); // aceptable solo aquí: es el intento inicial de conexión
+  while (WiFi.status() != WL_CONNECTED && millis() - inicio < 10000) {
+    delay(200);
   }
   if (WiFi.status() == WL_CONNECTED) {
     Serial.println("WiFi conectado: " + WiFi.localIP().toString());
   } else {
     Serial.println("No se pudo conectar a WiFi por ahora; se reintentará.");
   }
+}
+
+// En loop(): reintento NO bloqueante cada 20 s. Así el timbre y el pulsador
+// siguen funcionando aunque no haya red.
+void reintentarWiFi() {
+  if (millis() - g_ultimoIntentoWiFi < 20000) return;
+  g_ultimoIntentoWiFi = millis();
+  Serial.println("Reintentando WiFi...");
+  WiFi.disconnect();
+  WiFi.begin(WIFI_SSID, WIFI_PASS);
 }
 
 void sincronizarHoraPorNTP() {
@@ -368,12 +497,12 @@ void actualizarToqueEnCurso() {
 
   switch (g_estadoToque) {
     case SONANDO_CORTO:
-      digitalWrite(PIN_RELE, HIGH);
+      setRele(true);
       if (transcurrido >= DURACION_CORTO_MS) finalizarToque();
       break;
 
     case SONANDO_MEDIO:
-      digitalWrite(PIN_RELE, HIGH);
+      setRele(true);
       if (transcurrido >= DURACION_MEDIO_MS) finalizarToque();
       break;
 
@@ -382,7 +511,7 @@ void actualizarToqueEnCurso() {
       // confundirse con un toque de clase prolongado (sección 4).
       unsigned long cicloTotal = LARGO_PULSO_ON_MS + LARGO_PULSO_OFF_MS;
       unsigned long posicion = transcurrido % cicloTotal;
-      digitalWrite(PIN_RELE, posicion < LARGO_PULSO_ON_MS ? HIGH : LOW);
+      setRele(posicion < LARGO_PULSO_ON_MS);
       if (transcurrido >= DURACION_LARGO_MS) finalizarToque();
       break;
     }
@@ -393,7 +522,7 @@ void actualizarToqueEnCurso() {
 }
 
 void finalizarToque() {
-  digitalWrite(PIN_RELE, LOW);
+  setRele(false);
   Serial.printf("Toque '%s' finalizado (%s)\n", g_tipoToqueActual.c_str(), g_origenToqueActual.c_str());
 
   if (WiFi.status() == WL_CONNECTED) {

@@ -9,7 +9,7 @@
    en PHP. Cuando la API en PHP esté lista, hay que:
 
      1. Cambiar USE_MOCK_DATA a false.
-     2. Ajustar API_BASE a la URL real (ej. "http://localhost/timbre/api").
+     2. Ajustar API_BASE a la URL real (ej. "http:///pwa-timbre/api").
      3. Confirmar que los endpoints devuelven exactamente el mismo formato
         de objeto que usan las funciones mockGetHorarios / mockGetHistorial
         de abajo (ver el contrato de datos comentado junto a cada una).
@@ -19,7 +19,7 @@
    ========================================================================== */
 
 const USE_MOCK_DATA = false;
-const API_BASE = "http://localhost/pwa-timbre/api"; // ajustar cuando exista el backend
+const API_BASE = "api"; // ajustar cuando exista el backend
 
 const STORAGE_KEY_HORARIOS = "timbre_horarios";
 const STORAGE_KEY_HISTORIAL = "timbre_historial";
